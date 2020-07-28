@@ -1,0 +1,15 @@
+# IDEA project files
+.idea/
+
+# Maven
+target/
+
+# Mac
+.DS_Store
+
+# Log file
+*.log
+
+# Virtual machine crash logs
+hs_err_pid*
+*.iml
