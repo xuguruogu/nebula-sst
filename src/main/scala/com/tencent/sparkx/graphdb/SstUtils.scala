@@ -93,15 +93,18 @@ object SstUtils {
 
     for (i <- values.indices) {
       val prop = props(i)
-      val clazz = values(i).getClass.getName
+      val value = values(i)
+      if (value == null) {
+        throw new RuntimeException(s"value index ${i} is null")
+      }
+      val clazz = value.getClass.getName
       clazz match {
         case "java.lang.Boolean" =>
           if (!prop.equalsIgnoreCase("bool")) {
             throw new RuntimeException("Type Not match: " + prop + " vs " + clazz)
           }
 
-        case "java.lang.Integer" =>
-        case "java.lang.Long" =>
+        case "java.lang.Integer" | "java.lang.Long" =>
           if (!prop.equalsIgnoreCase("int") && !prop.equalsIgnoreCase("timestamp")) {
             throw new RuntimeException("Type Not match: " + prop + " vs " + clazz)
           }
@@ -116,8 +119,7 @@ object SstUtils {
             throw new RuntimeException("Type Not match: " + prop + " vs " + clazz)
           }
 
-        case "[B" =>
-        case "java.lang.String" =>
+        case "[B" | "java.lang.String" =>
           if (!prop.equalsIgnoreCase("string")) {
             throw new RuntimeException("Type Not match: " + prop + " vs " + clazz)
           }
@@ -147,11 +149,8 @@ object SstUtils {
         case "java.lang.Float" =>
           v(i) = value.asInstanceOf[Float].doubleValue().asInstanceOf[AnyRef]
 
-        case "java.lang.Boolean" =>
-        case "java.lang.Long" =>
-        case "java.lang.Double" =>
-        case "[B" =>
-          v(i) = value.asInstanceOf[Array[Byte]].asInstanceOf[AnyRef]
+        case "java.lang.Boolean" | "java.lang.Long" | "java.lang.Double" | "[B" =>
+          v(i) = value.asInstanceOf[AnyRef]
 
         case "java.lang.String" =>
           v(i) = value.toString.getBytes.asInstanceOf[AnyRef]
@@ -163,7 +162,8 @@ object SstUtils {
     NebulaCodec.encode(v)
   }
 
-  def checkAndEncodeProps(props: Array[String], values: Any*): Array[Byte] = {
+  def checkAndEncodeProps(props: Array[String], values: Any*
+                         ): Array[Byte] = {
     if (props.length != values.length) {
       throw new RuntimeException(
         s"props in schema len ${props.length} != actually values len ${values.length}")
@@ -177,8 +177,7 @@ object SstUtils {
           case "bool" =>
             v(i) = false.asInstanceOf[AnyRef]
 
-          case "int" =>
-          case "timestamp" =>
+          case "int" | "timestamp" =>
             v(i) = 0L.asInstanceOf[AnyRef]
 
           case "double" =>
@@ -190,8 +189,7 @@ object SstUtils {
           case _ =>
             throw new RuntimeException("Type Error : " + prop)
         }
-      }
-      else {
+      } else {
         val clazz: String = value.getClass.getName
         prop match {
           case "bool" =>
@@ -215,8 +213,7 @@ object SstUtils {
                 throw new RuntimeException("Type Miss Match : " + prop + "," + clazz)
             }
 
-          case "int" =>
-          case "timestamp" =>
+          case "int" | "timestamp" =>
             clazz match {
               case "java.lang.Boolean" =>
                 v(i) = if (value.asInstanceOf[Boolean]) {
@@ -238,13 +235,14 @@ object SstUtils {
                 v(i) = value.asInstanceOf[Long].asInstanceOf[AnyRef]
 
               case "[B" =>
-                if (value.asInstanceOf[Array[Byte]].length == 0) {
+                if (value.asInstanceOf[Array[Byte]].isEmpty) {
                   v(i) = 0L.asInstanceOf[AnyRef]
                 } else {
                   try {
-                    v(i) = new String(value.asInstanceOf[Array[Byte]]).asInstanceOf[AnyRef]
+                    v(i) = new String(value.asInstanceOf[Array[Byte]])
+                      .toLong.longValue().asInstanceOf[AnyRef]
                   } catch {
-                    case e: NumberFormatException =>
+                    case _: NumberFormatException =>
                       v(i) = UnsignedLong.valueOf(
                         new String(value.asInstanceOf[Array[Byte]]))
                         .longValue.asInstanceOf[AnyRef]
@@ -256,7 +254,7 @@ object SstUtils {
                   v(i) = 0L.asInstanceOf[AnyRef]
                 } else {
                   try {
-                    v(i) = value.asInstanceOf[String].toLong.asInstanceOf[AnyRef]
+                    v(i) = value.asInstanceOf[String].toLong.longValue.asInstanceOf[AnyRef]
                   } catch {
                     case _: NumberFormatException =>
                       v(i) = UnsignedLong.valueOf(value.asInstanceOf[String])
@@ -289,7 +287,7 @@ object SstUtils {
                 v(i) = value.asInstanceOf[Long].doubleValue().asInstanceOf[AnyRef]
 
               case "[B" =>
-                if ((value.asInstanceOf[Array[Byte]]).length == 0) {
+                if (value.asInstanceOf[Array[Byte]].isEmpty) {
                   v(i) = 0.0.asInstanceOf[AnyRef]
                 } else {
                   v(i) = new String(value.asInstanceOf[Array[Byte]]).toDouble.asInstanceOf[AnyRef]
@@ -309,17 +307,13 @@ object SstUtils {
 
           case "string" =>
             clazz match {
-              case "java.lang.Float" =>
-              case "java.lang.Double" =>
-              case "java.lang.Byte" =>
-              case "java.lang.Short" =>
-              case "java.lang.Integer" =>
-              case "java.lang.Long" =>
-              case "java.lang.String" =>
+              case "java.lang.Float" | "java.lang.Double" | "java.lang.Byte"
+                   | "java.lang.Short" | "java.lang.Integer" | "java.lang.Long"
+                   | "java.lang.String" =>
                 v(i) = value.toString.getBytes.asInstanceOf[AnyRef]
 
               case "[B" =>
-                v(i) = value.asInstanceOf[String].asInstanceOf[AnyRef]
+                v(i) = value.asInstanceOf[Array[Byte]].asInstanceOf[AnyRef]
 
               case _ =>
                 throw new RuntimeException("Type Miss Match : " + prop + "," + clazz)
